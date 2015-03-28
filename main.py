@@ -38,6 +38,11 @@ from urllib.parse import unquote, urlparse, parse_qs, ParseResult
 
 
 
+connection = database.createDatabase('site.db') # TODO: Move this
+database.createDummyEntries(connection)
+
+
+
 class Publisher(BaseHTTPRequestHandler):
 
 	'''
@@ -52,14 +57,15 @@ class Publisher(BaseHTTPRequestHandler):
 		Handles GET requests
 
 		'''
-		
 
 		#
 		# TODO: Use platform-independent functions to construct the full path (...)
 		print('Processing GET request ({path})...'.format(path=self.path))
 		url = ParseResult(*(unquote(part) for part in urlparse(self.path))) # Unpack url components and decode HTML escapes (%xx)
 		
-		if path.splitext(url.path)[-1] not in webutils.contentTypes:
+		print(url.path)
+		if not (path.splitext(url.path)[-1] in webutils.contentTypes or url.path == '/entry'):
+			# TODO: Better url validation
 			# TODO: Response code
 			print('Empty or invalid URL')
 			return
@@ -67,26 +73,22 @@ class Publisher(BaseHTTPRequestHandler):
 		ctype    = webutils.contentTypeFromPath(self.path)	# Content type
 		category = ctype.split('/')[0] # Content type category (eg. image, text, etc.)
 		query = parse_qs(url.query, keep_blank_values=True, strict_parsing=False, encoding='utf-8', errors='replace') # 
-		echo = '</br>'.join('<strong>{0}</strong>: {1}'.format(key, val) for key, val in query.items()) 		 	 # Inefficient
 
 		# TODO: Find a less error-prone procedure for determining the file type
 
-		if category == 'dynamic':
-			# Dynamic content
+		if url.path == '/entry':
+			# Request for a blog entry
+			# TODO: Not sure if this (entry path) is the best approach
+			entry = database.fetchEntry(connection, ID=int(query['id'][0]))
+			# print(entry[4])
 			self.send_response(200)
 			self.send_header('Content-type', 'text/html')
 			self.end_headers()
+			webutils.sendUnicode(self.wfile, '<DOCTYPE html>\n<html>{contents}</br><strong>你好世界</strong></html>'.format(contents=entry[4]))
 
-			day = time.localtime()[7]
-			year = time.localtime()[0]
-
-			webutils.sendUnicode(self.wfile, '\n'.join((
-				'<link rel="shortcut icon" type="image/png" href="C:/Users/Jonatan/Desktop/Web%20dev/Ajax/Ajax.png">',
-				'<p>Today is the <strong>{day}</strong><sup>{ord}</sup> day in the year <strong style="color:red;font-family:Courier">{year}</strong>.</p>',
-				'<p>The items you requested:</br>{echo}</p>',
-				'<p>Head over to the <a href="http://hem.bredband.net/swiftsnamesake/">main page</a></p>',
-				'<img src="http://www.paul-cezanne.org/Still-Life-with-Basket-of-Apples.jpg"><img/>')).format(day=day, ord=ordinal(day), year=year, echo=echo)
-			)
+		elif category == 'dynamic':
+			# Dynamic content
+			pass
 
 		elif not path.exists(url.path):
 			# Invalid path
@@ -99,7 +101,7 @@ class Publisher(BaseHTTPRequestHandler):
 				self.send_response(200)
 				self.send_header('Content-type', ctype)
 				self.end_headers()
-				self.sendUnicode(f)
+				webutils.sendUnicode(self.wfile, f)
 
 		elif category == 'image':
 			# Images
@@ -121,6 +123,8 @@ class Publisher(BaseHTTPRequestHandler):
 
  		'''
 		
+		# TODO: Figure out what all of this means...
+
 		print('Handling POST request')
 		
 		try:

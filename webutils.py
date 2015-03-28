@@ -51,10 +51,10 @@ def contentTypeFromPath(path):
 
 	'''
 
-	#
+	# TODO: Error handling
 
-	ext = splitext(path)[-1] # Extension
-	cat = contentTypes[ext]  # Category
+	ext = splitext(path)[-1]               # Extension
+	cat = contentTypes.get(ext, 'unknown') # Category
 
 	content = ({'.js': 'javascript', '.txt': 'plain'}).get(ext, ext[1:]) # Shave off dot
 

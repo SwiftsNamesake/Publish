@@ -6,8 +6,8 @@
 # March 28 2015
 #
 
-# TODO | - 
-#        - 
+# TODO | - POST requests
+#        - Versioning (git, viewing diffs, etc.)
 
 # SPEC | -
 #        -
