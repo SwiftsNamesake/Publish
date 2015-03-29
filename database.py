@@ -12,6 +12,7 @@
 #        - Friendlier API (eg. using row factory to create namedtuple rows)
 #        - Don't hardcode database parameters (eg. schema and table name) 
 #        - Decide on how to handle time stamps (locale, time zone, format, etc.)
+#        - Read up on the SQL language
 	
 # SPEC | -
 #        -
@@ -21,12 +22,18 @@
 import sqlite3
 
 from subprocess import call # For Git commands
-from datetime import date
+from datetime import datetime
 from collections import namedtuple
 
 
 # (id real, date text, author text, title text, contents text)')
+# TODO: Creating row schemas from namedtuples (?)
 EntryRow = namedtuple('EntryRow', 'ID date author title contents') #
+UserRow  = namedtuple('UserRow',  'ID joined sobriquet email username password')
+
+
+DEBUG   = True
+TESTING = True
 
 
 
@@ -42,14 +49,14 @@ def test(f):
 	# TODO: Use wrapper decorator from functools
 
 	def wrapper(*args, **kwargs):
-		if True: f(*args, **kwargs)
+		if TESTING: f(*args, **kwargs)
 	wrapper.orignal = f
 	return wrapper
 
 
 
 @test
-def createDummyEntries(connection):
+def createDummyEntries(connection, overwrite=False):
 
 	'''
 	Docstring goes here
@@ -61,14 +68,21 @@ def createDummyEntries(connection):
 
 	cursor = connection.cursor()
 
+	if overwrite:
+		print('Deleting previous dummy entries...')
+		cursor.execute('DELETE FROM entries WHERE id < 5')
+
 	if cursor.execute('SELECT Count(0) FROM entries').fetchone()[0] >= 4:
 		print('Dummy entries have already been created')
-	else:
-		for title, text in (('Weather', 'I like sunshine.'), ('Politics', 'They\'re all evil.'), ('Computers', 'They scare me.'), ('Math', 'π is in fact 4.6.')):
-			#(id real, date text, author text, title text, contents text)
-			storeEntry(connection, title, text, 'Jonatan H Sundqvist')
+		return
 
-		connection.commit()
+	print('Creating dummy entries...')
+
+	for title, text in (('Weather', 'I like sunshine.'), ('Politics', 'They\'re all evil.'), ('Computers', 'They scare me.'), ('Math', 'π is in fact 4.6.')):
+		#(id real, date text, author text, title text, contents text)
+		storeEntry(connection, title, text, 'Jonatan H Sundqvist')
+
+	connection.commit()
 
 
 
@@ -92,10 +106,12 @@ def createDatabase(databasePath):
 
 	'''
 
+	print('Connecting to database ({path})...'.format(path=databasePath))
+
 	connection = sqlite3.connect(databasePath)
 	cursor     = connection.cursor()
 
-	connection.row_factory = lambda cur, row: EntryRow(*row) if len(row) == 5 else row # TODO: Make configurable, move to separate function
+	connection.row_factory = sqlite3.Row #lambda cur, row: EntryRow(*row) if len(row) == 5 else row # TODO: Make configurable, move to separate function
 
 	# TODO: Check table format too (not just existence)
 	# TODO: Decide on a table schema
@@ -107,7 +123,24 @@ def createDatabase(databasePath):
 
 
 
-def fetchEntries(connection, title=None, ID=None):
+def executeAndCommit(connection, statement, parameters=tuple()):
+
+	'''
+	Executes and commits a single SQL statement with the provided connection,
+	possibly with a tuple of parameters to interpolate. Returns the cursor.
+
+	'''
+
+	# TODO: Handle errors
+	cursor = connection.cursor()
+	cursor = cursor.exexute(statement, parameters)
+	connection.commit()
+
+	return cursor
+
+
+
+def fetchEntries(connection, title=None, ID=None, author=None):
 
 	'''
 	Fetches all entries matching the given query.
@@ -118,13 +151,25 @@ def fetchEntries(connection, title=None, ID=None):
 
 	'''
 
+	# TODO: Only ONE argument is used for the query (currently)
 	# TODO: Allow customised queries, more than one attribute
+	# TODO: Generalise (query by row values for other tables) (use kwargs?)
 	# TODO: Performance
 
-	assert (title, ID) != (None, None), 'Whoops. You forgot to supply an argument (either a title or an ID will do)'
+	arguments = (title, ID, author)
+
+	assert any(attr is not None for attr in arguments), 'Whoops. You forgot to supply an argument (either a title, an ID, or an author will do)'
+
+	specified = next(attr for attr in arguments if attr is not None )
+
+	attribute = {
+		title:  'title',
+		ID:     'id',
+		author: 'author'
+	}[specified]
 
 	cursor = connection.cursor()
-	cursor.execute('SELECT * FROM entries WHERE {attribute}=?'.format(attribute='title' if title else 'id'), (title or ID, )) #
+	cursor.execute('SELECT * FROM entries WHERE {attribute}=?'.format(attribute=attribute), (specified, )) #
 
 	return cursor
 
@@ -159,7 +204,7 @@ def storeEntry(connection, title, text, author):
 
 	cursor   = connection.cursor()
 	rowcount = cursor.execute('SELECT Count(*) FROM entries').fetchone()[0] #
-	cursor.execute('INSERT INTO entries VALUES (?, ?, ?, ?, ?)', (rowcount, date.now().strftime('%c'), author, title, text))
+	cursor.execute('INSERT INTO entries VALUES (?, ?, ?, ?, ?)', (rowcount, datetime.now().strftime('%c'), author, title, text))
 
 
 
