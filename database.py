@@ -22,6 +22,11 @@ import sqlite3
 
 from subprocess import call # For Git commands
 from datetime import date
+from collections import namedtuple
+
+
+# (id real, date text, author text, title text, contents text)')
+EntryRow = namedtuple('EntryRow', 'ID date author title contents') #
 
 
 
@@ -56,11 +61,14 @@ def createDummyEntries(connection):
 
 	cursor = connection.cursor()
 
-	for title, text in (('Weather', 'I like sunshine.'), ('Politics', 'They\'re all evil.'), ('Computers', 'They scare me.'), ('Math', 'π is in fact 4.6.')):
-		#(id real, date text, author text, title text, contents text)
-		storeEntry(connection, title, text)
+	if cursor.execute('SELECT Count(0) FROM entries').fetchone()[0] >= 4:
+		print('Dummy entries have already been created')
+	else:
+		for title, text in (('Weather', 'I like sunshine.'), ('Politics', 'They\'re all evil.'), ('Computers', 'They scare me.'), ('Math', 'π is in fact 4.6.')):
+			#(id real, date text, author text, title text, contents text)
+			storeEntry(connection, title, text, 'Jonatan H Sundqvist')
 
-	connection.commit()
+		connection.commit()
 
 
 
@@ -87,13 +95,38 @@ def createDatabase(databasePath):
 	connection = sqlite3.connect(databasePath)
 	cursor     = connection.cursor()
 
+	connection.row_factory = lambda cur, row: EntryRow(*row) if len(row) == 5 else row # TODO: Make configurable, move to separate function
+
 	# TODO: Check table format too (not just existence)
 	# TODO: Decide on a table schema
 
-	cursor.execute('CREATE TABLE IF NOT EXISTS entries (id real, date text, author text, title text, contents text)') # Create the entries table if it does not already exist
+	cursor.execute('CREATE TABLE IF NOT EXISTS entries (id integer, date text, author text, title text, contents text)') # Create the entries table if it does not already exist
 	connection.commit()
 
 	return connection
+
+
+
+def fetchEntries(connection, title=None, ID=None):
+
+	'''
+	Fetches all entries matching the given query.
+	Ignoring all parameters will result in an assertion error.
+
+	Entries with identical titles are (currently) allowed, though
+	all but the first will be omitted from the result.
+
+	'''
+
+	# TODO: Allow customised queries, more than one attribute
+	# TODO: Performance
+
+	assert (title, ID) != (None, None), 'Whoops. You forgot to supply an argument (either a title or an ID will do)'
+
+	cursor = connection.cursor()
+	cursor.execute('SELECT * FROM entries WHERE {attribute}=?'.format(attribute='title' if title else 'id'), (title or ID, )) #
+
+	return cursor
 
 
 
@@ -108,17 +141,11 @@ def fetchEntry(connection, title=None, ID=None):
 
 	'''
 
-	assert (title, ID) != (None, None), 'Whoops. You forgot to supply an argument (either a title or an ID will do)'
-	cursor = connection.cursor()
-	print('SELECT * FROM entries WHERE {attribute}={ID}'.format(attribute='title' if title else 'id', ID=ID))
-	print(title, type(ID))
-	print(title or ID)
-	cursor.execute('SELECT * FROM entries WHERE {attribute}=?'.format(attribute='title' if title else 'id'), (title or ID, )) #
-	return cursor.fetchone()
+	return fetchEntries(connection, title=title, ID=ID).fetchone()
 
 
 
-def storeEntry(connection, title, text):
+def storeEntry(connection, title, text, author):
 
 	'''
 	Docstring goes here
@@ -132,7 +159,7 @@ def storeEntry(connection, title, text):
 
 	cursor   = connection.cursor()
 	rowcount = cursor.execute('SELECT Count(*) FROM entries').fetchone()[0] #
-	cursor.execute('INSERT INTO entries VALUES (?, ?, ?, ?, ?)', (rowcount, date.today().strftime('%c'), 'Jonatan H Sundqvist', title, text))
+	cursor.execute('INSERT INTO entries VALUES (?, ?, ?, ?, ?)', (rowcount, date.now().strftime('%c'), author, title, text))
 
 
 

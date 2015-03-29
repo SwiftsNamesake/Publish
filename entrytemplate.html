@@ -5,12 +5,16 @@
 
 <html>
 <head>
-	<meta charset="UTF-8">
-	<link rel="stylesheet" type="text/css" href="entry.css">
+	<meta charset='UTF-8'>
+	<link rel='stylesheet' type='text/css' href='/entry.css'>
 	<title>{title}</title>
 </head>
 <body>
-	{contents}
-	<p id='footer'><em>Posted {time} by {author}</em></p>
+	<div id='sheet'>
+		<h2>{title}</h2>
+		<p id='contents'>{contents}</p>
+		<hr>
+		<p id='footer'><em>Posted {time} by {author}</em></p>
+	</div>
 </body>
 </html>

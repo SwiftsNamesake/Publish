@@ -17,6 +17,8 @@
 from pprint import pprint # TEST
 from os.path import splitext
 
+from collections import namedtuple
+
 
 
 # Maps file extensions to their respective content types
@@ -26,6 +28,7 @@ contentTypes = { ext : media for media, exts in {
 	'dynamic': 	('.esp', )
 }.items() for ext in exts }
 
+ContentType = namedtuple('ContentType', 'category subtype') # Represents an internet media type (type and subtype)
 
 print(pprint(contentTypes)) # TEST
 
@@ -52,13 +55,17 @@ def contentTypeFromPath(path):
 	'''
 
 	# TODO: Error handling
+	# TODO: Use existing modules instead (?)
+
+	# TODO: Spec compliance (https://en.wikipedia.org/wiki/Internet_media_type)
 
 	ext = splitext(path)[-1]               # Extension
 	cat = contentTypes.get(ext, 'unknown') # Category
 
 	content = ({'.js': 'javascript', '.txt': 'plain'}).get(ext, ext[1:]) # Shave off dot
 
-	return '{category}/{exact}'.format(category=cat, exact=content)
+	# return '{category}/{exact}'.format(category=cat, exact=content)
+	return ContentType(cat, content)
 
 
 
