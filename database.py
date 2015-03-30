@@ -71,7 +71,7 @@ def createDummyEntries(connection, overwrite=False):
 
 	if overwrite:
 		print('Deleting previous dummy entries...')
-		cursor.execute('DELETE FROM entries WHERE id < ?', len(entries))
+		cursor.execute('DELETE FROM entries WHERE id < ?', (len(entries), ))
 
 	if cursor.execute('SELECT Count(0) FROM entries').fetchone()[0] >= 4:
 		print('Dummy entries have already been created')

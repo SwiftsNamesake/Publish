@@ -6,7 +6,7 @@
 # March 28 2015
 #
 
-# TODO | - 
+# TODO | - Rename to utils.py or separate web utilities from common utilities
 #        - 
 
 # SPEC | -
@@ -32,6 +32,34 @@ ContentType = namedtuple('ContentType', 'category subtype') # Represents an inte
 
 # pprint(contentTypes) # TEST
 
+
+
+def consoleDivider(length=80, header='', padx=' '):
+
+	'''
+	Prints a divider with an optional heading.
+
+	'''
+
+	# TODO: Option for closing dividers and indentation withing a console section
+	# TODO: Fancy console output (?)
+
+	padLen     = 2 * len(padx) * len(header[:1])  # Padding on each side of the header
+	headerLen  = len(header)                      #
+	indent     = 2                                # Indentation of the header
+	dividerLen = length-(padLen+headerLen+indent) #o
+
+	print('\n\n{indent}{padx}{header}{padx}{divider}\n\n'.format(indent=indent*'-', padx=padx*len(header[:1]), header=header, divider='-' * dividerLen))
+
+
+def log(message, indent=2):
+
+	'''
+	Prints a simple log message.
+
+	'''
+
+	print('{indent}{message}'.format(indent=' ' * indent, message=message))
 
 
 def escapeUnicode(data):

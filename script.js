@@ -42,38 +42,49 @@ function addEntryListeners() {
 }
 
 
-function poll(frequency) {
+function poll(delay, success, options) {
 
-	/* Polls the (a?) server asynchronously for updates */
+	// Polls the (a?) server asynchronously for updates with the given frequency (1000/delay mHz).
+	// The success callback is invoked with each response.
 
 	// TODO: Make this a general-purpose function for async polling
 	// TODO: Use promises (?)
+	// TODO: Customise queries and poll behaviour
+	defaults = { success: function(data, status, xhr) { success(data, status, xhr); setTimeout(wrapper, delay); } }
+
+	function wrapper() {
+		$.ajax($.extend({}, defaults, options));
+	}
+
+	setTimeout(wrapper, delay);
+
+}
+
+
+function appendEntries(data, status, xhr) {
+
+	/*  */
+
+	$.each(data, function(index, entry) {
+		// TODO: Move-in animation
+		console.log(entry);
+		$('body').append(data[index]['contents']);
+	});
+
+	addEntryListeners();
 
 }
 
 
 $(document).ready(function(e) {
 	
+	/*  */
 	addEntryListeners();
-
-	$('#reload').click(function(event) {
-		$.ajax({
-			dataType: 'json',
-			url: 'api.esp?author=Jonatan%20H%20Sundqvist',
-			data: {}, // TODO: How to access this parameter
-			success: function(data, status, xhr) {
-
-				$.each(data, function(index, entry) {
-					// TODO: Move-in animation
-					console.log(entry);
-					$('body').append(data[index]['contents']);
-				});
-
-				addEntryListeners();
-
-			}
-		})
-
+	poll(2000, appendEntries, { dataType: 'json',
+		                        url: 'api.esp?author=Jonatan%20H%20Sundqvist',
+		                        data: {} // TODO: How to access this parameter (self.rfile probably)
 	});
+
+	// $('#reload').click(function(event) { loadNewEntries() });
 
 });

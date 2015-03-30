@@ -59,8 +59,9 @@ entryTemplate = open('entrytemplate.html', 'r', encoding='UTF-8').read()
 connection = database.createDatabase('site.db') # TODO: Move this
 database.createDummyEntries(connection, overwrite=True)
 
-print('\n\n{0:}\n\n'.format('-' * 80)) # TODO: Fancy console output (?)
+webutils.consoleDivider(header='Welcome', length=85)
 
+port = 80
 root = 'C:/Users/Jonatan/Desktop/Python/projects/Publish/' # TODO: Prevent upwards relative paths
 
 
@@ -81,10 +82,10 @@ class Publisher(BaseHTTPRequestHandler):
 
 		#
 		# TODO: Use platform-independent functions to construct the full path (...)
-		print('Processing GET request ({path})...'.format(path=self.path))
+		webutils.log('Processing GET request ({path})...'.format(path=self.path))
 		self.dispatch('GET', self.path)
 
-		print('\n\n{0:}\n\n'.format('-' * 80)) # TODO: Fancy console output (?)
+		webutils.consoleDivider(length=85) # TODO: Fancy console output (?)
 
 
 	def do_POST(self):
@@ -96,7 +97,7 @@ class Publisher(BaseHTTPRequestHandler):
 		
 		# TODO: Figure out what all of this means...
 
-		print('Processing POST request ({path})...'.format(path=self.path))
+		webutils.log('Processing POST request ({path})...'.format(path=self.path))
 		self.dispatch('POST', self.path)
 
 		if False:
@@ -111,15 +112,15 @@ class Publisher(BaseHTTPRequestHandler):
 				self.end_headers()
 				upfilecontent = query.get('upfile')
 				
-				print ('filecontent', upfilecontent[0])
+				webutils.log('filecontent', upfilecontent[0])
 				
 				self.wfile.write('<html>POST OK.<br><br></html>')
 				self.wfile.write(upfilecontent[0])
 
 			except Exception as e:
-				print('The all-inclusive except')
+				webutils.log('The all-inclusive except')
 
-		print('\n\n{0:}\n\n'.format('-' * 80)) # TODO: Fancy console output (?)
+		webutils.consoleDivider(length=85)
 
 
 	def normaliseQuery(self, query):
@@ -213,7 +214,8 @@ class Publisher(BaseHTTPRequestHandler):
 		if not path.exists(filename):
 			# Invalid path
 			# TODO: Figure how how to handle paths properly (no ../, shave off initial slash, etc.)
-			print("404:", path.join(root, filename))
+			# TODO: What's the difference between send_error and send_response?
+			webutils.log("404:", path.join(root, filename))
 			self.error_message_format = '\n'.join(('<body>',
 												   '<h1 style="background:red;">Error!</h1>',
 												   '<p>Error code %(code)d.</p>',
@@ -256,7 +258,7 @@ class Publisher(BaseHTTPRequestHandler):
 
 		if request.path == '/publish.esp':
 			#
-			print('Storing published entry...')
+			webutils.log('Storing published entry...')
 			size  = int(self.headers['content-length'])
 			data  = self.rfile.read(size)
 			entry = json.loads(data.decode(encoding='UTF-8'))
@@ -281,7 +283,7 @@ class Publisher(BaseHTTPRequestHandler):
 			# Not implemented response code
 			self.send_error(501, 'Unable to handle your request at this moment.')
 		else:
-			print('I\'m not quite sure what went wrong. Sorry. This is all new to me.')
+			webutils.log('I\'m not quite sure what went wrong. Sorry. This is all new to me.')
 
 
 	def dispatch(self, verb, url):
@@ -292,6 +294,7 @@ class Publisher(BaseHTTPRequestHandler):
 	
 		'''
 		
+		# TODO: Cache the handler dictionaries
 		# TODO: Best approach for request dispatch (request.path, headers, query, content type, etc.)	
 		# TODO: Handler signature (rely on class attributes, or pass parameters)
 		# TODO: Parse headers (?)
@@ -305,9 +308,8 @@ class Publisher(BaseHTTPRequestHandler):
 		#
 		request     = ParseResult(*(unquote(part) for part in urlparse(self.path))) # Unpack url components and decode HTML escapes (%xx)
 		contentType = webutils.contentTypeFromPath(request.path)                    # Content type
-		# query       = parse_qs(url.query, keep_blank_values=True, strict_parsing=False, encoding='utf-8', errors='replace') # 
 
-		print(contentType)
+		webutils.log(contentType)
 
 		# GET request handlers
 		GET = {
@@ -349,8 +351,8 @@ def main():
 	'''
 
 	try:
-		server = HTTPServer(('', 80), Publisher)
-		print('Started httpserver at port {port}...'.format(port=80))
+		server = HTTPServer(('', port), Publisher)
+		webutils.log('Started httpserver at port {port}...'.format(port=port))
 		server.serve_forever()
 	except KeyboardInterrupt:
 		server.socket.close()
