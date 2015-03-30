@@ -8,6 +8,8 @@
 
 # TODO | - POST requests
 #        - Versioning (git, viewing diffs, etc.)
+#        - Security, logins (cf. related TODOs in main.py)
+#        - Queues (to prevent freezing)
 
 # SPEC | -
 #        -
@@ -15,10 +17,15 @@
 
 
 import datetime
+import urllib.request as request
+import json
+
+import tkinter as tk
+import tkinter.ttk as ttk
 
 
 
-def publish(self):
+def publish(entry):
 
 	'''
 	Docstring goes here
@@ -26,8 +33,53 @@ def publish(self):
 	'''
 
 	# TODO: Allow file input
+	# TODO: Validate data
+	# TODO: Decide on a url format
+	# TODO: Handle response
+	# TODO: URL-escape
 
-	pass
+	print('Publishing entry...')
+
+	headers = { 'content-type': 'application/json;charset=utf-8' }
+	data    = json.dumps(entry).encode('UTF-8') # TODO: Encode this (?)
+	url     = 'http://localhost:80/publish.esp'
+
+	req      = request.Request(url, data=data, headers=headers, method='POST')
+	response = request.urlopen(req).read().decode('UTF-8', 'ignore')
+
+	print(response)
+
+
+
+def createEditor():
+
+	'''
+	Docstring goes here
+
+	'''
+
+	size = (420, 420) 
+
+	frame = tk.Tk()
+	frame.title('New blog post...')
+	frame.geometry('{0}x{1}'.format(*size))
+
+	title  = ttk.Entry()
+	body   = ttk.Entry() # TODO: Text area
+	auth   = ttk.Entry() #
+	submit = ttk.Button(text='Publish', command=lambda: publish({'title': title.get(), 'contents': body.get(), 'author': auth.get()}))
+
+	title.insert(0, 'Title...')
+	body.insert(0, 'Body...')
+	auth.insert(0, 'Author...')
+
+	title.grid(row=0, column=0, columnspan=3, padx=4, pady=4, sticky=tk.W+tk.E)
+	body.grid(row=1,  column=0, columnspan=3, padx=4, pady=4, sticky=tk.W+tk.E)
+	auth.grid(row=2,  column=0, columnspan=2, padx=4, pady=4, sticky=tk.W+tk.E)
+
+	submit.grid(row=2, column=2, columnspan=1, padx=4, pady=4, sticky=tk.W+tk.E)
+
+	return frame
 
 
 
@@ -38,7 +90,9 @@ def main():
 
 	'''
 
-	pass
+	# publish({'author': 'Jonatan H Sundqvist', 'title': 'A New Beginning', 'contents': 'Listen carefully, this is very important.'})
+	editor = createEditor()
+	editor.mainloop()
 
 
 

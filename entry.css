@@ -10,6 +10,7 @@ body {
 	/*width: 100%;*/
 	/*height: 100%;*/
 	padding: 30pt;
+	overflow-x: hidden;
 }
 
 
@@ -17,7 +18,7 @@ body {
 
 	background-color: #BCECE8;
 	padding: 18pt;
-	box-shadow: 10px 10px 5px #888888;
+	box-shadow: 10pt 10pt 5pt #888888;
 
 	/*width: 70%;*/
 	margin-left: auto;
@@ -38,8 +39,10 @@ body {
 
 
 .highlight {
-
-	border: 3pt dashed #9640CC;
+	
+	background-color: #71D3F8;
+	-webkit-transition: background-color 0.5s;
+	/*border: 3pt dashed #9640CC;*/
 
 }
 

@@ -30,7 +30,7 @@ contentTypes = { ext : media for media, exts in {
 
 ContentType = namedtuple('ContentType', 'category subtype') # Represents an internet media type (type and subtype)
 
-print(pprint(contentTypes)) # TEST
+# pprint(contentTypes) # TEST
 
 
 

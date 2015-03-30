@@ -66,11 +66,12 @@ def createDummyEntries(connection, overwrite=False):
 	# TODO: Make sure IDs aren't reused (for actual content atleast)
 	# TODO: Reserve a few IDs for testing (?)
 
-	cursor = connection.cursor()
+	cursor  = connection.cursor()
+	entries = (('Weather', 'I like sunshine.'), ('Politics', 'They\'re all evil.'), ('Computers', 'They scare me.'), ('Math', 'π is in fact 4.6.'))
 
 	if overwrite:
 		print('Deleting previous dummy entries...')
-		cursor.execute('DELETE FROM entries WHERE id < 5')
+		cursor.execute('DELETE FROM entries WHERE id < ?', len(entries))
 
 	if cursor.execute('SELECT Count(0) FROM entries').fetchone()[0] >= 4:
 		print('Dummy entries have already been created')
@@ -78,7 +79,7 @@ def createDummyEntries(connection, overwrite=False):
 
 	print('Creating dummy entries...')
 
-	for title, text in (('Weather', 'I like sunshine.'), ('Politics', 'They\'re all evil.'), ('Computers', 'They scare me.'), ('Math', 'π is in fact 4.6.')):
+	for title, text in entries:
 		#(id real, date text, author text, title text, contents text)
 		storeEntry(connection, title, text, 'Jonatan H Sundqvist')
 
