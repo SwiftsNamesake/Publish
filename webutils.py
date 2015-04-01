@@ -18,6 +18,7 @@ from pprint import pprint # TEST
 from os.path import splitext
 
 from collections import namedtuple
+from datetime import datetime
 
 
 
@@ -59,7 +60,7 @@ def log(message, indent=2):
 
 	'''
 
-	print('{indent}{message}'.format(indent=' ' * indent, message=message))
+	print('{indent}{message}'.format(indent=(' ' * indent), message=message))
 
 
 def escapeUnicode(data):
@@ -109,3 +110,54 @@ def sendUnicode(wfile, contents):
 
 	# TODO: Error handling,return values
 	wfile.write(escapeUnicode(contents))
+
+
+def replace(text, instead, begin, end):
+	
+	'''
+	Replaces a portion of a string (or any object supporting slices and concatenation)
+
+	'''
+
+	return text[:begin] + instead + text[end:]
+
+
+def toUTCSeconds(date):
+
+	'''
+	Converts a local-specific datetime string to an epoch
+	timestamp (seconds since January 1, 1970)
+
+	'''
+
+	# TODO: Direct support datetime arguments
+	# TODO: Rename (eg. something related to epoch, seconds since)
+
+	return (datetime.strptime(date, '%c') - datetime.fromtimestamp(0)).total_seconds()
+
+
+def articleOf(noun):
+
+	'''
+	Decides which article (a or an) a noun should have based
+	on its first letter (vowel or consonant).
+
+	'''
+
+	# TODO: Take pronunciation into account
+
+	return 'an' if noun[0].lower() in 'aeiou' else 'a'
+
+
+def assertInstance(name, value, thetype):
+
+	'''
+	Docstring goes here
+
+	'''
+
+	# Yes, grammar is that important
+	actual = str(type(value))
+	assert isinstance(value, thetype), '{name} must be {ideal} (not {actual})'.format(name=name,
+	                                                                                  ideal=webutils.articleOf(str(thetype)) + ' ' + str(thetype),
+	                                                                                  actual=webutils.articleOf(actual) + ' ' + actual)

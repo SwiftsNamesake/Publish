@@ -11,9 +11,20 @@
 #        - Choosing unique IDs
 #        - Friendlier API (eg. using row factory to create namedtuple rows)
 #        - Don't hardcode database parameters (eg. schema and table name) 
-#        - Decide on how to handle time stamps (locale, time zone, format, etc.)
+#        - Decide on how to handle time stamps (locale, time zone, format, seconds as int or string, etc.)
+#          -- Leaning towards UTC-0 timestamps (seconds since midnight on January 1 1970)
+#          -- Make sure the database, server and front-end have a consistent view of dates (eg. using the same format or knowing how to convert)
+#
 #        - Read up on the SQL language
-	
+#          -- Syntax highlighting (?)
+#          -- Static grammar and semantic checks (eg. type safety)
+#
+#        - Integrity
+#          -- Print debug information (changed rows, row count, etc.)
+#        
+#        - API
+#          -- Wrap queries in functions
+
 # SPEC | -
 #        -
 
@@ -21,19 +32,25 @@
 
 import sqlite3
 
-from subprocess import call # For Git commands
-from datetime import datetime
-from collections import namedtuple
+from subprocess import call        # For Git commands
+from datetime import datetime      #
+from collections import namedtuple #
 
 
 # (id real, date text, author text, title text, contents text)')
 # TODO: Creating row schemas from namedtuples (?)
-EntryRow = namedtuple('EntryRow', 'ID date author title contents') #
+EntryRow = namedtuple('EntryRow', 'ID timestamp author title contents') #
 UserRow  = namedtuple('UserRow',  'ID joined sobriquet email username password')
 
 
 DEBUG   = True
 TESTING = True
+
+
+
+class Schemas(object):
+	entries = '(id integer, timestamp integer, author integer, title text, contents text)'
+	users   = '(ID integer, joined integer,    sobriquet text, email text, username text, passhash)'
 
 
 
@@ -72,8 +89,9 @@ def createDummyEntries(connection, overwrite=False):
 	if overwrite:
 		print('Deleting previous dummy entries...')
 		cursor.execute('DELETE FROM entries WHERE id < ?', (len(entries), ))
+		print('Deleted {0} entries'.format(cursor.rowcount))
 
-	if cursor.execute('SELECT Count(0) FROM entries').fetchone()[0] >= 4:
+	if cursor.execute('SELECT Count(0) FROM entries WHERE id < ?', (len(entries), )).fetchone()[0] >= 4:
 		print('Dummy entries have already been created')
 		return
 
@@ -117,7 +135,8 @@ def createDatabase(databasePath):
 	# TODO: Check table format too (not just existence)
 	# TODO: Decide on a table schema
 
-	cursor.execute('CREATE TABLE IF NOT EXISTS entries (id integer, date text, author text, title text, contents text)') # Create the entries table if it does not already exist
+	# Create the entries table if it does not already exist
+	cursor.execute('CREATE TABLE IF NOT EXISTS entries (id integer, timestamp integer, author text, title text, contents text)')
 	connection.commit()
 
 	return connection
@@ -134,7 +153,7 @@ def executeAndCommit(connection, statement, parameters=tuple()):
 
 	# TODO: Handle errors
 	cursor = connection.cursor()
-	cursor = cursor.exexute(statement, parameters)
+	cursor = cursor.execute(statement, parameters)
 	connection.commit()
 
 	return cursor
@@ -175,6 +194,24 @@ def fetchEntries(connection, title=None, ID=None, author=None):
 	return cursor
 
 
+def fetchRecent(connection, limit=None, earliest=None):
+
+	'''
+	Docstring goes here
+
+	'''
+
+	# TODO: User context managers more often
+	# TODO: Check errors, exceptions, add logging
+	# TODO: Utilities for assembling queries (including conditional clauses; eg. the LIMIT clause should only be included
+	# when the corresponding parameter is not None)
+	
+	webutils.assertInstance('Limit', limit or 0, int)
+	webutils.assertInstance('Earliest', earliest or 0, int)
+
+	with connection.cursor() as cursor:
+		cursor.execute('SELECT * FROM entries WHERE timestamp > ?{limit}'.format(limit='LIMIT limit or None'), (earliest or 0, ))
+
 
 def fetchEntry(connection, title=None, ID=None):
 
@@ -187,11 +224,11 @@ def fetchEntry(connection, title=None, ID=None):
 
 	'''
 
-	return fetchEntries(connection, title=title, ID=ID).fetchone()
+	return fetchEntries(connection, title=title, ID=ID).fetchone() # TODO: Use limit clause instead
 
 
 
-def storeEntry(connection, title, text, author):
+def storeEntry(connection, title, text, author, commit=False):
 
 	'''
 	Docstring goes here
@@ -205,11 +242,14 @@ def storeEntry(connection, title, text, author):
 
 	cursor   = connection.cursor()
 	rowcount = cursor.execute('SELECT Count(*) FROM entries').fetchone()[0] #
-	cursor.execute('INSERT INTO entries VALUES (?, ?, ?, ?, ?)', (rowcount, datetime.now().strftime('%c'), author, title, text))
+	cursor.execute('INSERT INTO entries VALUES (?, ?, ?, ?, ?)', (rowcount, datetime.now().strftime('%c'), author, title, text)) # TODO: See header for notes on timestamps
+
+	if commit:
+		connection.commit()
 
 
 
-def commitDatabaseChanges(path):
+def commitChanges(path):
 
 	'''
 	Docstring goes here

@@ -15,6 +15,8 @@
  */
 
 
+cache = { earliest: 0 }
+
 
 function addEntryListeners() {
 	
@@ -49,11 +51,11 @@ function poll(delay, success, options) {
 
 	// TODO: Make this a general-purpose function for async polling
 	// TODO: Use promises (?)
-	// TODO: Customise queries and poll behaviour
+	// TODO: Customise queries and poll behaviour (especially url) (make options a callable?)
 	defaults = { success: function(data, status, xhr) { success(data, status, xhr); setTimeout(wrapper, delay); } }
 
 	function wrapper() {
-		$.ajax($.extend({}, defaults, options));
+		$.ajax($.extend({}, defaults, options()));
 	}
 
 	setTimeout(wrapper, delay);
@@ -71,6 +73,12 @@ function appendEntries(data, status, xhr) {
 		$('body').append(data[index]['contents']);
 	});
 
+	if (data.length > 0) {
+		// TODO: Less fragile way of avoiding duplicates
+		cache['earliest'] = Math.max.apply(null, data.map(function(entry) { return Date.parse(entry['date'] + ' UTC+0200')/1000; }));
+		console.log('Updated earliest: %fms', cache['earliest'])
+	}
+	
 	addEntryListeners();
 
 }
@@ -80,9 +88,11 @@ $(document).ready(function(e) {
 	
 	/*  */
 	addEntryListeners();
-	poll(2000, appendEntries, { dataType: 'json',
-		                        url: 'api.esp?author=Jonatan%20H%20Sundqvist',
-		                        data: {} // TODO: How to access this parameter (self.rfile probably)
+	poll(2000, appendEntries, function() {
+		return { dataType: 'json',
+			     url: 'api.esp?author=Jonatan%20H%20Sundqvist&earliest=' + String(cache['earliest']),
+			     data: {} // TODO: How to access this parameter (self.rfile probably)
+		}
 	});
 
 	// $('#reload').click(function(event) { loadNewEntries() });

@@ -9,12 +9,21 @@
 # TODO | - POST requests
 #        - Versioning (git, viewing diffs, etc.)
 #        - Security, logins (cf. related TODOs in main.py)
-#        - Queues (to prevent freezing)
+#          -- Sanitise input
+#
+#        - Networking GUI
+#          -- Use a queue (to prevent freezing)
+#          -- Show 
+#
+#        - Editing features
+#          -- Markup, advanced formatting
 
 # SPEC | -
 #        -
 
 
+
+import webutils
 
 import datetime
 import urllib.request as request
@@ -38,16 +47,22 @@ def publish(entry):
 	# TODO: Handle response
 	# TODO: URL-escape
 
-	print('Publishing entry...')
+	# TODO: Promises, success/failure callbacks
 
-	headers = { 'content-type': 'application/json;charset=utf-8' }
-	data    = json.dumps(entry).encode('UTF-8') # TODO: Encode this (?)
-	url     = 'http://localhost:80/publish.esp'
+	webutils.log('Publishing entry...')
 
-	req      = request.Request(url, data=data, headers=headers, method='POST')
-	response = request.urlopen(req).read().decode('UTF-8', 'ignore')
+	try:
+		headers = { 'content-type': 'application/json;charset=utf-8' }
+		data    = json.dumps(entry).encode('UTF-8') # TODO: URL-encode this (?)
+		url     = 'http://localhost:80/publish.esp'
 
-	print(response)
+		req      = request.Request(url, data=data, headers=headers, method='POST')
+		response = request.urlopen(req).read().decode('UTF-8', 'ignore')
+		
+		print(response)
+	except Exception as e:
+		webutils.log('Something went wrong when trying to publish your entry:')
+		webutils.log(e)
 
 
 
@@ -62,15 +77,15 @@ def createEditor():
 
 	frame = tk.Tk()
 	frame.title('New blog post...')
-	frame.geometry('{0}x{1}'.format(*size))
+	# frame.geometry('{0}x{1}'.format(*size))
 
 	title  = ttk.Entry()
-	body   = ttk.Entry() # TODO: Text area
+	body   = tk.Text() # TODO: Text area
 	auth   = ttk.Entry() #
-	submit = ttk.Button(text='Publish', command=lambda: publish({'title': title.get(), 'contents': body.get(), 'author': auth.get()}))
+	submit = ttk.Button(text='Publish', command=lambda: publish({'title': title.get(), 'contents': body.get('0.0'), 'author': auth.get()}))
 
 	title.insert(0, 'Title...')
-	body.insert(0, 'Body...')
+	body.insert(tk.INSERT, 'Body...')
 	auth.insert(0, 'Author...')
 
 	title.grid(row=0, column=0, columnspan=3, padx=4, pady=4, sticky=tk.W+tk.E)

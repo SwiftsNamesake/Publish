@@ -64,18 +64,18 @@ body {
 
 .navbar:hover {
 
-	background-color: lighten(#E6356F);
+	background-color: #E9125A; /* lighten(#E6356F) */
 	-webkit-transition: background-color 0.5s;
 
 }
 
 
-/*.navbar * {
+.navbar * {
 	
 	margin-left: 5pt;
 	margin-right: 5pt;
 
-}*/
+}
 
 
 
@@ -95,20 +95,9 @@ body {
 }
 
 
-#title p {
-
-	
-}
-
-
 #title {
 
 	vertical-align: middle;
 	float: left;
-	height: 100%;
-	/*text-align: center;*/
-	/*line-height: 100%;*/
-	/*display: table-cell;*/
-	/*height: 100%;*/
 	
 }
