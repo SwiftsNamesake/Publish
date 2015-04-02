@@ -10,38 +10,55 @@
 #        - Keep cursor or create new ones (?)
 #        - Choosing unique IDs
 #        - Friendlier API (eg. using row factory to create namedtuple rows)
-#        - Don't hardcode database parameters (eg. schema and table name) 
+#        - Don't hardcode database parameters (eg. schema and table name) (...)
+#
 #        - Decide on how to handle time stamps (locale, time zone, format, seconds as int or string, etc.)
 #          -- Leaning towards UTC-0 timestamps (seconds since midnight on January 1 1970)
 #          -- Make sure the database, server and front-end have a consistent view of dates (eg. using the same format or knowing how to convert)
+#          -- Normalise and verify epochs (or is it always Jan 1 1970 00:00) (?)
 #
 #        - Read up on the SQL language
 #          -- Syntax highlighting (?)
 #          -- Static grammar and semantic checks (eg. type safety)
 #
+#        - Read up on the sqlite3 module
+#          -- How exactly does interpolation work (just for values, or grammar too?) (?)
+#
 #        - Integrity
 #          -- Print debug information (changed rows, row count, etc.)
+#          -- Sanitise all input, provide utilities for this which enforce security
+#          -- Sanitise dynamic SQL queries
+#          -- Wrap every transaction in a context manager (with) for automatic rollbacks
+#          -- Prevent duplicates (IDs, users)
+#          -- Integrate version control
 #        
 #        - API
 #          -- Wrap queries in functions
+#          -- Abstract types, formats, order, etc of tables (no leaking db internals)
+#          -- Explain API
+#          -- General utilities: addTable(schema), insertIntoTable(values), count, etc.
+#
+#        - Dynamic queries
+#          - Create utilities for assembling queries with optional clauses
 
 # SPEC | -
 #        -
 
 
 
-import sqlite3
+import webutils
+
+import sqlite3 #
+import time    #
 
 from subprocess import call        # For Git commands
-from datetime import datetime      #
-from collections import namedtuple #
+from collections import namedtuple # 
 
 
 # (id real, date text, author text, title text, contents text)')
 # TODO: Creating row schemas from namedtuples (?)
-EntryRow = namedtuple('EntryRow', 'ID timestamp author title contents') #
-UserRow  = namedtuple('UserRow',  'ID joined sobriquet email username password')
-
+# EntryRow = namedtuple('EntryRow', 'ID timestamp author title contents') #
+# UserRow  = namedtuple('UserRow',  'ID joined sobriquet email username password')
 
 DEBUG   = True
 TESTING = True
@@ -49,8 +66,12 @@ TESTING = True
 
 
 class Schemas(object):
-	entries = '(id integer, timestamp integer, author integer, title text, contents text)'
-	users   = '(ID integer, joined integer,    sobriquet text, email text, username text, passhash)'
+	# TODO: Prevent tampering
+	# TODO: Verify schemas
+	# TODO: Schema utilities
+	# TODO: Schema interpolation formats (:= syntax?)
+	entries = '(id integer, timestamp integer, userID integer, title text, contents text)'
+	users   = '(id integer, joined integer,    sobriquet text, email text, username text, passhash integer)'
 
 
 
@@ -83,23 +104,44 @@ def createDummyEntries(connection, overwrite=False):
 	# TODO: Make sure IDs aren't reused (for actual content atleast)
 	# TODO: Reserve a few IDs for testing (?)
 
+	#
 	cursor  = connection.cursor()
 	entries = (('Weather', 'I like sunshine.'), ('Politics', 'They\'re all evil.'), ('Computers', 'They scare me.'), ('Math', 'π is in fact 4.6.'))
+	users   = (('Jonatan H Sundqvist', 'my@email.com', 'swifty', 0), ) # TODO: WARNING, horrible password hash, just for testing
 
+	#
 	if overwrite:
-		print('Deleting previous dummy entries...')
+		webutils.log('Deleting previous dummy entries...')
 		cursor.execute('DELETE FROM entries WHERE id < ?', (len(entries), ))
-		print('Deleted {0} entries'.format(cursor.rowcount))
+		webutils.log('Deleted {count} entries'.format(count=cursor.rowcount))
 
-	if cursor.execute('SELECT Count(0) FROM entries WHERE id < ?', (len(entries), )).fetchone()[0] >= 4:
-		print('Dummy entries have already been created')
-		return
+		webutils.log('Deleting previous dummy users...')
+		cursor.execute('DELETE FROM users WHERE id < ?', (len(users), ))
+		webutils.log('Deleted {count} users'.format(count=cursor.rowcount))
 
-	print('Creating dummy entries...')
 
-	for title, text in entries:
-		#(id real, date text, author text, title text, contents text)
-		storeEntry(connection, title, text, 'Jonatan H Sundqvist')
+	if cursor.execute('SELECT Count(0) FROM users WHERE id < ?', (len(users), )).fetchone()[0] >= len(users):
+		webutils.log('Dummy users have already been created')
+	else:
+		webutils.log('Creating dummy users...')
+		for sobriquet, email, username, passhash in users:
+			storeUser(connection, sobriquet, email, username, passhash)
+
+
+	if cursor.execute('SELECT Count(0) FROM entries WHERE id < ?', (len(entries), )).fetchone()[0] >= len(entries):
+		webutils.log('Dummy entries have already been created')
+	else:
+		webutils.log('Creating dummy entries...')
+		for title, text in entries:
+			storeEntry(connection, title, text, cursor.execute('SELECT id FROM users WHERE sobriquet="Jonatan H Sundqvist"').fetchone()['id']) # TODO: Not sure about the syntax
+
+
+	# TODO: Mute tests
+	for entry in fetch(connection, 'entries'):
+		print(*('%s=%s' % (k, str(entry[k]).encode('ascii', errors='replace')) for k in entry.keys()))
+
+	for user in fetch(connection, 'users'):
+		print(*('%s=%s' % (k, user[k]) for k in user.keys()))
 
 	connection.commit()
 
@@ -125,10 +167,9 @@ def createDatabase(databasePath):
 
 	'''
 
-	print('Connecting to database ({path})...'.format(path=databasePath))
+	webutils.log('Connecting to database ({path})...'.format(path=databasePath))
 
 	connection = sqlite3.connect(databasePath)
-	cursor     = connection.cursor()
 
 	connection.row_factory = sqlite3.Row #lambda cur, row: EntryRow(*row) if len(row) == 5 else row # TODO: Make configurable, move to separate function
 
@@ -136,8 +177,9 @@ def createDatabase(databasePath):
 	# TODO: Decide on a table schema
 
 	# Create the entries table if it does not already exist
-	cursor.execute('CREATE TABLE IF NOT EXISTS entries (id integer, timestamp integer, author text, title text, contents text)')
-	connection.commit()
+	with connection as cursor:
+		cursor.execute('CREATE TABLE IF NOT EXISTS entries {schema}'.format(schema=Schemas.entries))
+		cursor.execute('CREATE TABLE IF NOT EXISTS users   {schema}'.format(schema=Schemas.users))
 
 	return connection
 
@@ -152,15 +194,16 @@ def executeAndCommit(connection, statement, parameters=tuple()):
 	'''
 
 	# TODO: Handle errors
-	cursor = connection.cursor()
-	cursor = cursor.execute(statement, parameters)
-	connection.commit()
+	# TODO: Add promises (fail, support, progress)
+	# TODO: Replace parameters with *parameters or *values
 
-	return cursor
+	with connection as cursor:
+		cursor.execute(statement, parameters)
+		return cursor
 
 
 
-def fetchEntries(connection, title=None, ID=None, author=None):
+def fetchEntries(connection, title=None, ID=None, userID=None, limit=None):
 
 	'''
 	Fetches all entries matching the given query.
@@ -176,11 +219,13 @@ def fetchEntries(connection, title=None, ID=None, author=None):
 	# TODO: Generalise (query by row values for other tables) (use kwargs?)
 	# TODO: Performance
 
+	# TODO: Fix author query (now userID)
+
 	arguments = (title, ID, author)
 
-	assert any(attr is not None for attr in arguments), 'Whoops. You forgot to supply an argument (either a title, an ID, or an author will do)'
+	assert any(attr is not None for attr in arguments), 'Whoops. You forgot to supply an argument (either a title, an ID, or an author ID will do)'
 
-	specified = next(attr for attr in arguments if attr is not None )
+	specified = next(attr for attr in arguments if attr is not None)
 
 	attribute = {
 		title:  'title',
@@ -188,10 +233,36 @@ def fetchEntries(connection, title=None, ID=None, author=None):
 		author: 'author'
 	}[specified]
 
-	cursor = connection.cursor()
-	cursor.execute('SELECT * FROM entries WHERE {attribute}=?'.format(attribute=attribute), (specified, )) #
+	with connection as cursor:
+		cursor.execute(addOptionalClause('SELECT * FROM entries WHERE {attribute}=?', 'LIMIT', limit).format(attribute=attribute), (specified, )) #
+		return cursor
 
-	return cursor
+
+
+def fetch(connection, table, where=None, limit=None):
+
+	'''
+	Fetches all rows from the given table that matches the query.
+	Currently supports the WHERE and LIMIT clause.
+
+	'''
+
+	# TODO: Column select (susceptible to injections?)
+	# TODO: Sanitise input
+	# TODO: Use dictionary instead, treat escaping properly
+
+	# TODO: Accept where as single value too (no ugly singleton tuples)
+
+	with connection:
+		cursor = connection.cursor()
+		# print('Where:', *where)
+		where = '' if where is None else ' WHERE {constraints}'.format(constraints=' AND '.join(str(constraint) for constraint in where))
+		limit = '' if limit is None else ' LIMIT {limit!s}'.format(limit=limit)
+		query = 'SELECT * FROM {table}{where}{limit}'.format(table=table, where=where, limit=limit)
+		print(query)
+		cursor.execute(query)
+		return cursor
+
 
 
 def fetchRecent(connection, limit=None, earliest=None):
@@ -209,8 +280,9 @@ def fetchRecent(connection, limit=None, earliest=None):
 	webutils.assertInstance('Limit', limit or 0, int)
 	webutils.assertInstance('Earliest', earliest or 0, int)
 
-	with connection.cursor() as cursor:
-		cursor.execute('SELECT * FROM entries WHERE timestamp > ?{limit}'.format(limit='LIMIT limit or None'), (earliest or 0, ))
+	with connection as cursor:
+		cursor.execute(addOptionalClause('SELECT * FROM entries WHERE timestamp > ?', 'LIMIT', limit), (earliest or 0, ))
+
 
 
 def fetchEntry(connection, title=None, ID=None):
@@ -224,11 +296,11 @@ def fetchEntry(connection, title=None, ID=None):
 
 	'''
 
-	return fetchEntries(connection, title=title, ID=ID).fetchone() # TODO: Use limit clause instead
+	return fetchEntries(connection, title=title, ID=ID, limit=1).fetchone() # TODO: Use limit clause instead
 
 
 
-def storeEntry(connection, title, text, author, commit=False):
+def storeEntry(connection, title, text, userID):
 
 	'''
 	Docstring goes here
@@ -237,15 +309,31 @@ def storeEntry(connection, title, text, author, commit=False):
 
 	# TODO: Rename (?)
 	# TODO: Decide on how to handle time stamps (locale, time zone, format, etc.)
-	# TODO: Proper ID handling
-	# TODO: Commit (?)
+	# TODO: Proper ID handling (IMPORTANT, author is now an id for a user entry)
 
-	cursor   = connection.cursor()
-	rowcount = cursor.execute('SELECT Count(*) FROM entries').fetchone()[0] #
-	cursor.execute('INSERT INTO entries VALUES (?, ?, ?, ?, ?)', (rowcount, datetime.now().strftime('%c'), author, title, text)) # TODO: See header for notes on timestamps
+	# TODO: Generic store[Entry|Use|etc.] function
 
-	if commit:
-		connection.commit()
+	with connection as cursor:
+		rowcount = cursor.execute('SELECT Count(*) FROM entries').fetchone()[0] #
+		cursor.execute('INSERT INTO entries VALUES (?, ?, ?, ?, ?)', (rowcount, int(time.time()), userID, title, text)) # TODO: See header for notes on timestamps
+
+
+
+def storeUser(connection, sobriquet, email, username, passhash):
+
+	'''
+	Docstring goes here
+
+	'''
+
+	# TODO: Rename (?)
+	# TODO: See also database.storeEntry
+	# TODO: Sanitise, verify (eg. email) and handle errors
+
+	with connection as cursor:
+		# TODO: See header for notes on timestamps
+		rowcount = cursor.execute('SELECT Count(*) FROM users').fetchone()[0] #
+		cursor.execute('INSERT INTO users VALUES (?, ?, ?, ?, ?, ?)', (rowcount, int(time.time()), sobriquet, email, username, passhash))
 
 
 
@@ -260,6 +348,26 @@ def commitChanges(path):
 	# TODO: Error handling (eg. invalid path, wrong, directory)
 	subprocess.call('git add "{path}"'.format(path=path))                                                          #
 	subprocess.call('git commit "{path}" -m "{message}"'.format(path=path, message='Committing database changes')) # TODO: More informative commit message
+
+
+
+def addOptionalClause(query, clause, value):
+
+	'''
+	Appends the specified clause to the query if the
+	value is not None.
+
+	'''
+
+	# TODO: Change signatue (make clause the ENTIRE clause, replace value with include/exclude flag)
+	# TODO: More succinct way of doing 'conditional formatting'
+	# TODO: Error handling, sanitising
+	# TODO: Verify syntax, allow more complex optional queries (currently just KEYWORD value at the end of the string)
+
+	if value is None:
+		return query
+	else:
+		return '{original} {optional}'.format(original=query, optional='{keyword} {value}'.format(keyword=clause, value=value)) 
 
 
 

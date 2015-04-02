@@ -14,6 +14,8 @@
 
 
 
+import time
+
 from pprint import pprint # TEST
 from os.path import splitext
 
@@ -30,8 +32,6 @@ contentTypes = { ext : media for media, exts in {
 }.items() for ext in exts }
 
 ContentType = namedtuple('ContentType', 'category subtype') # Represents an internet media type (type and subtype)
-
-# pprint(contentTypes) # TEST
 
 
 
@@ -112,6 +112,7 @@ def sendUnicode(wfile, contents):
 	wfile.write(escapeUnicode(contents))
 
 
+
 def replace(text, instead, begin, end):
 	
 	'''
@@ -122,6 +123,7 @@ def replace(text, instead, begin, end):
 	return text[:begin] + instead + text[end:]
 
 
+
 def toUTCSeconds(date):
 
 	'''
@@ -130,10 +132,53 @@ def toUTCSeconds(date):
 
 	'''
 
+	# TODO: Remove this or reimplement with time module (datetime has timezone issues, it seems)
 	# TODO: Direct support datetime arguments
 	# TODO: Rename (eg. something related to epoch, seconds since)
 
 	return (datetime.strptime(date, '%c') - datetime.fromtimestamp(0)).total_seconds()
+
+
+
+def showUTCOffset(timestamp, timezone):
+
+	'''
+	Converts a timestamp to a UTC offset string (UTC[+|-]hhmm).
+
+	'''
+
+	# TODO: Error handling
+
+	# Time zone offset from UTC+0000 (Universal Coordinate Time)
+	# The negation is necessary (or atleast convenient) because
+	# the timezone is given as (UTC - local), meaning that positive
+	# offsets will be represented (eg. UTC+0100) by a negative value (eg. -3600)
+	offset = -timezone # Time zone offset (seconds)
+
+	# Simplify hh and mm calculations (some clever divmod trickery, perhaps?)
+	sign = ('+', '-')[offset < 0] #
+	hh   = (offset // 3600)       #
+	mm   = (offset % 3600)//60    #
+
+	return  'UTC{sign}{hh:02d}{mm:02d}'.format(sign=sign, hh=hh, mm=mm) # TODO: Use existing utility instead (UTC[+|-]hhmm)
+
+
+
+def localTimeFormat(timestamp):
+
+	'''
+	Converts a timestamp (seconds since the epoch inception) to a
+	locale-specific time string.
+
+	'''
+
+	# TODO: Use datetime or time for strftime (?)
+	# TODO: Use a standard format instead (eg. dd/mm/yyyy hh:mm:ss UTC[+|-]hhmm)
+
+	# time.strftime doesn't seem to handle %c correctly
+
+	return time.strftime('%c {timezone}'.format(timezone=showUTCOffset(timestamp, time.timezone)), time.localtime(timestamp))
+
 
 
 def articleOf(noun):
@@ -147,6 +192,7 @@ def articleOf(noun):
 	# TODO: Take pronunciation into account
 
 	return 'an' if noun[0].lower() in 'aeiou' else 'a'
+
 
 
 def assertInstance(name, value, thetype):

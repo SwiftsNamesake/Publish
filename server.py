@@ -6,8 +6,25 @@
 # April 01 2015
 #
 
-# TODO | - 
-#        - 
+# TODO | - Logging (database, plain text)
+#        - Security, privileges, encryption, https, hashes, salts, etc.
+#          -- https://www.piware.de/2011/01/creating-an-https-server-in-python/
+#
+#        - API (restful)
+#          -- Searching
+#          -- Queries (by date, by title, by id, etc.)
+#          -- Posting
+#          -- Listing entries
+#          -- JSON
+#          -- Unify and standardise API
+#
+#        - Threading (?)
+#        - Custom error pages
+#
+#        - Prevent server from stalling because of the console (eg. when selecting text)
+#        - GUI
+#          -- Swap request handlers at runtime (click and drag like puzzles)
+#          -- Inspect server state
 
 # SPEC | -
 #        -
@@ -18,8 +35,9 @@ import webutils #
 import database #
 
 import json
+import time
 
-from datetime import datetime
+from datetime import datetime # TODO: Remove (?)
 from os import path
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -33,7 +51,7 @@ pageTemplate  = open('pageTemplate.html',  'r', encoding='UTF-8').read()
 entryTemplate = open('entrytemplate.html', 'r', encoding='UTF-8').read()
 
 connection = database.createDatabase('site.db')         # TODO: Move this
-database.createDummyEntries(connection, overwrite=True) #
+database.createDummyEntries(connection, overwrite=True) # 
 
 webutils.consoleDivider(header='Welcome', length=85)
 
@@ -107,13 +125,17 @@ class Publisher(BaseHTTPRequestHandler):
 		Parses and normalises a query string
 	
 		'''
-	
+		
+		# TODO: Handle errors
+		# TODO: Keep up-to-date with the database schemas
+		# TODO: Exclude None values (?)
+
 		query = parse_qs(query, keep_blank_values=True, strict_parsing=False, encoding='UTF-8', errors='replace') # 
 
-		return { 'ID'       : int(query['ID'][0]) if 'ID' in query else None,             # 
-		         'earliest' : int(query['earliest'][0]) if 'earliest' in query else None, # 
-		         'title' : query.get('title',  [None])[0],                                # 
-		         'author': query.get('author', [None])[0]  }                              # 
+		return { key: value for key, value in { 'id'       : int(query['id'][0]) if 'id' in query else None,               # 
+				                                'earliest' : float(query['earliest'][0]) if 'earliest' in query else None, # 
+				                                'title'  : query.get('title',  [None])[0],                                 # 
+				                                'userID' : query.get('userID', [None])[0]  }.items() if value is not None} # 
 
 
 	def interpolateEntryHTML(self, entry):
@@ -122,8 +144,16 @@ class Publisher(BaseHTTPRequestHandler):
 		Fills in an HTML template for a single entry.
 	
 		'''
-	
-		return entryTemplate.format(title=entry['title'], contents=entry['contents'], time=entry['date'], author=entry['author'])
+
+		# TODO: Error handling
+		# TODO: More flexible HTML generation
+
+		sobriquet = database.fetch(connection, 'users', where=('id={id}'.format(id=entry['userID']), )).fetchone()['sobriquet']
+
+		return entryTemplate.format(title=entry['title'],
+		                            contents=entry['contents'],
+		                            time=webutils.localTimeFormat(entry['timestamp']),
+		                            author=sobriquet)
 
 
 	def handleDynamicRequest(self, contentType, request):
@@ -139,8 +169,8 @@ class Publisher(BaseHTTPRequestHandler):
 		# TODO: Move API logic to separate method(s)
 		# TODO: Validate query (omitting will case an assertion error in fetchEntries)
 
-		query    = self.normaliseQuery(request.query)
-		earliest = query.pop('earliest') or 0 #datetime.strptime()
+		query    = self.normaliseQuery(request.query) #
+		earliest = query.pop('earliest', 0)           # datetime.strptime()
 
 		if request.path == '/entry.esp':
 
@@ -151,7 +181,10 @@ class Publisher(BaseHTTPRequestHandler):
 			# TODO: Extract some common functionality (eg. fetching rows and filling in templates)
 			# TODO: Should certain columns be hidden (eg. the id)
 
-			entries  = [entry for entry in database.fetchEntries(connection, **query)]
+			where   = tuple('{k}={v}'.format(k=k, v=v) for k, v in query.items())
+			rows    = database.fetch(connection, 'entries', where=where)
+
+			entries = [entry for entry in rows]
 			
 			if len(entries) == 0:
 				# Probably not the right course of action for a dynamic request
@@ -161,27 +194,33 @@ class Publisher(BaseHTTPRequestHandler):
 				self.end_headers()
 				webutils.sendUnicode(self.wfile, response)
 			else:
-				response = pageTemplate.format(title='Blog Posts', entries='\n'.join(self.interpolateEntryHTML(entry) for entry in entries))
+				# response = pageTemplate.format(title='Blog Posts', entries='\n'.join(self.interpolateEntryHTML(entry) for entry in entries))
+				response = pageTemplate.format(title='Blog Posts', entries='')
+
 				self.send_response(200)
 				self.send_header('Content-type', 'text/html')
 				self.end_headers()
 				webutils.sendUnicode(self.wfile, response)
+
 		elif request.path == '/api.esp':
 
 			# API
 			# TODO: Non-stupid way of filtering by date (should be done with an SQL query)
 			# webutils.log('earliest', earliest) # TODO: Causes memory error...
-			print('earliest', earliest)
-			entries  = [entry for entry in database.fetchEntries(connection, **query)  if webutils.toUTCSeconds(entry['date']) > earliest]
-			print(entries)
-			response = json.dumps([{ 'contents': self.interpolateEntryHTML(entry),
-				                     'author':   entry['author'],
-				                     'date':     entry['date']
+
+			where   = ('timestamp > %d' % int(earliest), ) + tuple('{k}={v}'.format(k=k, v=v) for k, v in query.items())
+			entries = [entry for entry in database.fetch(connection, 'entries', where=where)]
+
+			response = json.dumps([{ 'contents':  self.interpolateEntryHTML(entry),
+				                     'author':    database.fetch(connection, 'users', where=('id=%d' % entry['userID'], )).fetchone()['sobriquet'],
+				                     'timestamp': entry['timestamp'],
+				                     'date':      webutils.localTimeFormat(entry['timestamp'])
 				                   } for entry in entries])
 
 			self.send_response(200)
 			self.send_header('Content-type', 'application/json')
 			self.end_headers()
+
 			webutils.sendUnicode(self.wfile, response)
 
 		else:
@@ -255,7 +294,10 @@ class Publisher(BaseHTTPRequestHandler):
 			size  = int(self.headers['content-length'])
 			data  = self.rfile.read(size)
 			entry = json.loads(data.decode(encoding='UTF-8'))
-			database.storeEntry(connection, entry['title'], entry['contents'], entry['author'], commit=True) # TODO: Author param should be verified (login)
+			# TODO: Security, no naive userID direct use
+			# TODO: Author param should be verified (login)
+			database.storeEntry(connection, entry['title'], entry['contents'], database.fetch(connection, 'users', where=('sobriquet=%r' % entry['author'], )).fetchone()['id'])
+
 			# TODO: Send response
 			response = json.dumps({ 'status': 'OK' }).encode('UTF-8') # TODO: Send something useful...
 			self.send_response(200)

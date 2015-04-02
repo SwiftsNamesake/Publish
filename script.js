@@ -22,23 +22,24 @@ function addEntryListeners() {
 	
 	/*  */
 
+	function collapse() { $(this).animate({ height: '0pt', padding: '0pt' }) }
+	function remove() { $(this).remove(); }
+
+
 	$('.sheet').click(function(e) {
-		$(this).parent().animate({marginLeft: '2000pt'}, { duration: 1500, complete: function() { $(this).remove(); } });
-		// $(this).parent().remove()
+		$(this).parent().animate({ marginLeft: '1700pt' }, { duration: 800, complete: function() {
+			$(this).animate({ height: '0pt', padding: '0pt' }, { duration: 300, complete: function() {
+				$(this).remove();
+			}});
+		}});
 	});
 
 
 	$('.sheet').hover(
 		function(e) {
 			$(this).addClass('highlight');
-			// console.log('Hover in');
-			// $(this).animate({backgroundColor: '#ECB021'}, 500);
-			// $(this).css({backgroundColor: '#ECB021'});
 	},  function(e) {
 			$(this).removeClass('highlight');
-			// console.log('Hover out');
-			// $(this).animate({backgroundColor: '#71D3F8'}, 500);
-			// $(this).css({backgroundColor: '#71D3F8'});
 	});
 
 }
@@ -75,7 +76,7 @@ function appendEntries(data, status, xhr) {
 
 	if (data.length > 0) {
 		// TODO: Less fragile way of avoiding duplicates
-		cache['earliest'] = Math.max.apply(null, data.map(function(entry) { return Date.parse(entry['date'] + ' UTC+0200')/1000; }));
+		cache['earliest'] = Math.max.apply(null, data.map(function(entry) { return Math.floor(entry['timestamp']); }));
 		console.log('Updated earliest: %fms', cache['earliest'])
 	}
 	
@@ -90,7 +91,7 @@ $(document).ready(function(e) {
 	addEntryListeners();
 	poll(2000, appendEntries, function() {
 		return { dataType: 'json',
-			     url: 'api.esp?author=Jonatan%20H%20Sundqvist&earliest=' + String(cache['earliest']),
+			     url: 'api.esp?userID=0&earliest=' + String(cache['earliest']),
 			     data: {} // TODO: How to access this parameter (self.rfile probably)
 		}
 	});

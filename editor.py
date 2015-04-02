@@ -9,7 +9,7 @@
 # TODO | - POST requests
 #        - Versioning (git, viewing diffs, etc.)
 #        - Security, logins (cf. related TODOs in main.py)
-#          -- Sanitise input
+#          -- Sanitise input (guard against SQL, HTML and JavaScript injections)
 #
 #        - Networking GUI
 #          -- Use a queue (to prevent freezing)
@@ -50,11 +50,12 @@ def publish(entry):
 	# TODO: Promises, success/failure callbacks
 
 	webutils.log('Publishing entry...')
+	print(entry['contents'])
 
 	try:
 		headers = { 'content-type': 'application/json;charset=utf-8' }
 		data    = json.dumps(entry).encode('UTF-8') # TODO: URL-encode this (?)
-		url     = 'http://localhost:80/publish.esp'
+		url     = 'http://localhost:350/publish.esp'
 
 		req      = request.Request(url, data=data, headers=headers, method='POST')
 		response = request.urlopen(req).read().decode('UTF-8', 'ignore')
@@ -82,7 +83,7 @@ def createEditor():
 	title  = ttk.Entry()
 	body   = tk.Text() # TODO: Text area
 	auth   = ttk.Entry() #
-	submit = ttk.Button(text='Publish', command=lambda: publish({'title': title.get(), 'contents': body.get('0.0'), 'author': auth.get()}))
+	submit = ttk.Button(text='Publish', command=lambda: publish({'title': title.get(), 'contents': body.get('0.0', tk.END), 'author': auth.get()}))
 
 	title.insert(0, 'Title...')
 	body.insert(tk.INSERT, 'Body...')
